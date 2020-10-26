@@ -16,6 +16,7 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 import cv2
+import os
 
 sys.path.append('../')
 import sfa.config.kitti_config as cnf
@@ -83,6 +84,7 @@ def decode(hm_cen, cen_offset, direction, z_coor, dim, K=40):
 
     hm_cen = _nms(hm_cen)
     scores, inds, clses, ys, xs = _topk(hm_cen, K=K)
+
     if cen_offset is not None:
         cen_offset = _transpose_and_gather_feat(cen_offset, inds)
         cen_offset = cen_offset.view(batch_size, K, 2)
@@ -92,6 +94,7 @@ def decode(hm_cen, cen_offset, direction, z_coor, dim, K=40):
         xs = xs.view(batch_size, K, 1) + 0.5
         ys = ys.view(batch_size, K, 1) + 0.5
 
+    # print(xs)
     direction = _transpose_and_gather_feat(direction, inds)
     direction = direction.view(batch_size, K, 2)
     z_coor = _transpose_and_gather_feat(z_coor, inds)
@@ -101,10 +104,13 @@ def decode(hm_cen, cen_offset, direction, z_coor, dim, K=40):
     clses = clses.view(batch_size, K, 1).float()
     scores = scores.view(batch_size, K, 1)
 
+    # print(direction)
+
     # (scores x 1, ys x 1, xs x 1, z_coor x 1, dim x 3, direction x 2, clses x 1)
     # (scores-0:1, ys-1:2, xs-2:3, z_coor-3:4, dim-4:7, direction-7:9, clses-9:10)
     # detections: [batch_size, K, 10]
     detections = torch.cat([scores, xs, ys, z_coor, dim, direction, clses], dim=2)
+    # print(detections)
 
     return detections
 
@@ -154,8 +160,46 @@ def draw_predictions(img, detections, num_classes=3):
                 # (scores-0:1, x-1:2, y-2:3, z-3:4, dim-4:7, yaw-7:8)
                 _score, _x, _y, _z, _h, _w, _l, _yaw = det
                 drawRotatedBox(img, _x, _y, _w, _l, _yaw, cnf.colors[int(j)])
+                # print(det)
 
     return img
+
+def save_predictions(kitti_dets, num_classes, sample_id, kitti_output_dir):
+    kitti_output_file = os.path.join(kitti_output_dir, '%06d.txt' % sample_id)
+    with open(kitti_output_file, 'a') as f:
+        for j in range(num_classes):
+            if len(kitti_dets) > 0:
+                for det in kitti_dets:
+                    _cls_id, _x, _y, _z, _h, _w, _l, _yaw = det
+
+                    if int(_cls_id) == 1:
+                        print('%s -1 -1 -1 -1 -1 -1 -1 %.4f %.4f %.4f %.4f %.4f %.4f %.4f -1' %
+                        ('Car', _h, _w, _l, _x, _y, _z, _yaw), file=f)
+                    # elif _cls_id == 2:
+                    #     print('%s %.4f %.4f %.4f %.4f %.4f %.4f %.4f' %
+                    #     ('Cyclist', _h, _w, _l, _x, _y, _z, _yaw), file=f)
+                    # elif _cls_id == 0:
+                    #     print('%s %.4f %.4f %.4f %.4f %.4f %.4f %.4f' %
+                    #     ('Pedestrian', _h, _w, _l, _x, _y, _z, _yaw), file=f)
+                    
+
+def save_predictions_ab3dmot(kitti_dets, num_classes, sample_id, kitti_output_dir):
+    kitti_output_file = os.path.join(kitti_output_dir, 'result.txt')
+    with open(kitti_output_file, 'a') as f:
+        for j in range(num_classes):
+            if len(kitti_dets) > 0:
+                for det in kitti_dets:
+                    _cls_id, _x, _y, _z, _h, _w, _l, _yaw = det
+
+                    if int(_cls_id) == 1:
+                        print('%s %s -1 -1 -1 -1 -1 %.4f %.4f %.4f %.4f %.4f %.4f %.4f -1' %
+                        (sample_id, 2, _h, _w, _l, _x, _y, _z, _yaw), file=f)
+                    # elif _cls_id == 2:
+                    #     print('%s %.4f %.4f %.4f %.4f %.4f %.4f %.4f' %
+                    #     ('Cyclist', _h, _w, _l, _x, _y, _z, _yaw), file=f)
+                    # elif _cls_id == 0:
+                    #     print('%s %.4f %.4f %.4f %.4f %.4f %.4f %.4f' %
+                    #     ('Pedestrian', _h, _w, _l, _x, _y, _z, _yaw), file=f)
 
 
 def convert_det_to_real_values(detections, num_classes=3):
