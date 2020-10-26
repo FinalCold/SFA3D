@@ -26,7 +26,7 @@ sys.path.append('../')
 from sfa.data_process.kitti_dataloader import create_test_dataloader
 from sfa.models.model_utils import create_model
 from sfa.utils.misc import make_folder, time_synchronized
-from sfa.utils.evaluation_utils import decode, post_processing, draw_predictions, convert_det_to_real_values
+from sfa.utils.evaluation_utils import decode, post_processing, draw_predictions, convert_det_to_real_values, save_predictions
 from sfa.utils.torch_utils import _sigmoid
 import sfa.config.kitti_config as cnf
 from sfa.data_process.transformation import lidar_to_camera_box
@@ -130,10 +130,12 @@ if __name__ == '__main__':
             outputs['hm_cen'] = _sigmoid(outputs['hm_cen'])
             outputs['cen_offset'] = _sigmoid(outputs['cen_offset'])
             # detections size (batch_size, K, 10)
-            detections = decode(outputs['hm_cen'], outputs['cen_offset'], outputs['direction'], outputs['z_coor'],
+            detections = decode(outputs['hm_cen'], None, outputs['direction'], outputs['z_coor'],
                                 outputs['dim'], K=configs.K)
             detections = detections.cpu().numpy().astype(np.float32)
+            # print(detections)
             detections = post_processing(detections, configs.num_classes, configs.down_ratio, configs.peak_thresh)
+            # print(detections)
             t2 = time_synchronized()
 
             detections = detections[0]  # only first batch
@@ -141,6 +143,7 @@ if __name__ == '__main__':
             bev_map = (bev_maps.squeeze().permute(1, 2, 0).numpy() * 255).astype(np.uint8)
             bev_map = cv2.resize(bev_map, (cnf.BEV_WIDTH, cnf.BEV_HEIGHT))
             bev_map = draw_predictions(bev_map, detections.copy(), configs.num_classes)
+            # save_predictions(detections.copy(), configs.num_classes, batch_idx, '/home/mds/SFA3D/results/output')
 
             # Rotate the bev_map
             bev_map = cv2.rotate(bev_map, cv2.ROTATE_180)
@@ -151,6 +154,10 @@ if __name__ == '__main__':
             img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
             calib = Calibration(img_path.replace(".png", ".txt").replace("image_2", "calib"))
             kitti_dets = convert_det_to_real_values(detections)
+            print(kitti_dets)
+
+            ###############################################
+            save_predictions(kitti_dets.copy(), 1, batch_idx, '/home/mds/SFA3D/results/output_2')
             if len(kitti_dets) > 0:
                 kitti_dets[:, 1:] = lidar_to_camera_box(kitti_dets[:, 1:], calib.V2C, calib.R0, calib.P2)
                 img_bgr = show_rgb_image_with_boxes(img_bgr, kitti_dets, calib)

@@ -22,7 +22,7 @@ sys.path.append('./')
 
 from sfa.data_process.demo_dataset import Demo_KittiDataset
 from sfa.models.model_utils import create_model
-from sfa.utils.evaluation_utils import draw_predictions, convert_det_to_real_values
+from sfa.utils.evaluation_utils import draw_predictions, convert_det_to_real_values, save_predictions
 import sfa.config.kitti_config as cnf
 from sfa.data_process.transformation import lidar_to_camera_box
 from sfa.utils.visualization_utils import show_rgb_image_with_boxes
@@ -76,6 +76,7 @@ if __name__ == '__main__':
             img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
             calib = Calibration(configs.calib_path)
             kitti_dets = convert_det_to_real_values(front_detections)
+            save_predictions(kitti_dets.copy(), 1, batch_idx, '/home/mds/SFA3D/results/output_2')
             if len(kitti_dets) > 0:
                 kitti_dets[:, 1:] = lidar_to_camera_box(kitti_dets[:, 1:], calib.V2C, calib.R0, calib.P2)
                 img_bgr = show_rgb_image_with_boxes(img_bgr, kitti_dets, calib)
